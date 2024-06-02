@@ -25,7 +25,7 @@
 #endif
 
 // Main code
-int main(int, char**) {
+int main_(int, char**) {
     // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) !=
         0) {
@@ -198,4 +198,82 @@ int main(int, char**) {
     SDL_Quit();
 
     return 0;
+}
+
+#include <CL/cl.h>
+
+#include <iostream>
+
+int main(int argc, char** argv) {
+    cl_int err = CL_SUCCESS;
+    cl_uint num_platform = 0;
+    err = clGetPlatformIDs(0, NULL, &num_platform);
+    if (err == CL_SUCCESS) {
+        printf("%d platforms\n", num_platform);
+    } else {
+        printf("Cannot get num platforms %d\n", err);
+    }
+
+    cl_int dev_id;
+    cl_context ctx =
+        clCreateContextFromType(0, CL_DEVICE_TYPE_GPU, NULL, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        printf("Cannot create context: %d\n", err);
+    }
+    cl_device_id devices[num_platform];
+    clGetContextInfo(ctx, devices, 0, NULL);
+    cl_command_queue command_queue =
+        clCreateCommandQueue(ctx, &dev_id, 0, &err);
+    if (err != CL_SUCCESS) {
+        printf("Cannot create command queue: %d\n", err);
+    }
+    cl_program prg = clCreateProgramWithSource(ctx, 1, prg_src, NULL, &err);
+    if (err != CL_SUCCESS) {
+        printf("Cannot create program: %d\n", err);
+    }
+    err = clBuildProgram(prg, 0, NULL, NULL, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        printf("Cannot build program: %d\n", err);
+    }
+
+    int count = 100;
+    cl_mem buff_a = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(float) * count,
+                                   NULL, NULL);
+    cl_mem buff_b = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(float) * count,
+                                   NULL, NULL);
+    cl_mem buff_c = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
+                                   sizeof(float) * count, NULL, NULL);
+
+    float buff_host[count];
+    printf("Source:\n");
+    for (int i = 0; i < count; i++) {
+        printf("%f ", buff_host[i]);
+    }
+    clEnqueueReadBuffer(command_queue, buff_c, CL_TRUE, sizeof(float) * count,
+                        buff_host, NULL, NULL, NULL);
+
+    cl_kernel kernel = clCreateKernel(prg, "addition", &err);
+    clSetKernelArg(kernel, 0, sizeof(cl_mem), &buff_a);
+    clSetKernelArg(kernel, 1, sizeof(cl_mem), &buff_b);
+    clSetKernelArg(kernel, 2, sizeof(int), count);
+
+    clEnqueueWriteBuffer(command_queue, buff_a, CL_FALSE, 0,
+                         sizeof(float) * count, buff_host, 0, NULL, NULL);
+    clEnqueueWriteBuffer(command_queue, buff_b, CL_FALSE, 0,
+                         sizeof(float) * count, buff_host, 0, NULL, NULL);
+
+    clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, 100, NULL, 0, NULL,
+                           NULL);
+
+    err = clEnqueueReadBuffer(command_queue, buff_c, CL_TRUE, 0,
+                              sizeof(float) * count, buff_host, 0, NULL, NULL);
+
+    if (err != CL_SUCCESS) {
+        printf("Cannot read memory: %d\n", err);
+    }
+
+    printf("Output:\n");
+    for (int i = 0; i < count; i++) {
+        printf("%f ", buff_host[i]);
+    }
 }
