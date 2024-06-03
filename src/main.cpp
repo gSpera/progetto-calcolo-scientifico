@@ -207,32 +207,40 @@ int main_(int, char**) {
 int main(int argc, char** argv) {
     cl_int err = CL_SUCCESS;
     cl_uint num_platform = 0;
+    cl_platform_id platforms[10];
     cl_platform_id platform;
 
-    err = clGetPlatformIDs(1, &platform, &num_platform);
+    cl_uint num_devices;
+    cl_device_id devices[10];
+    cl_device_id device;
+
+    err = clGetPlatformIDs(10, platforms, &num_platform);
     if (err == CL_SUCCESS) {
         printf("%d platforms\n", num_platform);
     } else {
         printf("Cannot get num platforms %d\n", err);
         return 1;
     }
+    platform = platforms[0];
+    for (cl_uint i=0;i<num_platform; i++) {
+        char name[100];
+        err = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, 100, &name, NULL);
+        if (err != CL_SUCCESS) printf("Cannot get platform info: %d\n", err);
+        err = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 10, devices, &num_devices);
+        if (err != CL_SUCCESS) printf("Cannot get device ids: %d\n", err);
+        printf("Platform: %s %d devices\n", name, num_devices);
+        for (cl_uint j=0;j<num_devices;j++) {
+            err = clGetDeviceInfo(devices[j], CL_DEVICE_NAME, 100, &name, NULL);
+            if (err != CL_SUCCESS) printf("Cannot get device info: %d\n", err);
+            printf(" - Device: %s\n", name);
+        }
+    }
 
-    cl_uint num_devices;
-    cl_device_id device;
-    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 1, &device, &num_devices);
-    if (err == CL_SUCCESS) {
-        printf("%d devices\n", num_devices);
-    } else {
+    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 10, &device, &num_devices);
+    if (err != CL_SUCCESS) {
         printf("Cannot get num devices %d\n", err);
         return 1;
     }
-
-    char name[100] = {0};
-    err = clGetDeviceInfo(device, CL_DEVICE_VENDOR, sizeof(name) / sizeof(char), &name, NULL);
-    if (err != CL_SUCCESS) {
-        printf("Cannot retrieve device name\n");
-    }
-    printf("Device: %s\n", name);
 
     cl_context ctx = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
     if (err != CL_SUCCESS) {
@@ -246,18 +254,24 @@ int main(int argc, char** argv) {
         printf("Cannot create command queue: %d\n", err);
     }
 
-    int count = 20;
-    cl_mem buff_a = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(float) * count,
-                                   NULL, NULL);
-    cl_mem buff_b = clCreateBuffer(ctx, CL_MEM_READ_ONLY, sizeof(float) * count,
-                                   NULL, NULL);
-    cl_mem buff_c = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
-                                   sizeof(float) * count, NULL, NULL);
+    clFinish(command_queue);
 
-    float buff_host[count];
+    size_t count = 20;
+    cl_mem buff_a = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeof(float) * count,
+                                   NULL, &err);
+    if (err != CL_SUCCESS) printf("Cannot allocate buffer a: %d\n", err);
+    cl_mem buff_b = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeof(float) * count,
+                                   NULL, &err);
+    if (err != CL_SUCCESS) printf("Cannot allocate buffer b: %d\n", err);
+    cl_mem buff_c = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+                                   sizeof(float) * count, NULL, &err);
+    if (err != CL_SUCCESS) printf("Cannot allocate buffer c: %d\n", err);
+
+    clFinish(command_queue);
+    float buff_host[count] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     printf("Source:\n");
-    for (int i = 0; i < count; i++) {
-        printf("%3.1g ", buff_host[i]);
+    for (size_t i = 0; i < count; i++) {
+        printf("%3.2f ", buff_host[i]);
     }
     printf("\n");
 
@@ -265,47 +279,53 @@ int main(int argc, char** argv) {
                          sizeof(float) * count, buff_host, 0, NULL, NULL);
     clEnqueueWriteBuffer(command_queue, buff_b, CL_FALSE, 0,
                          sizeof(float) * count, buff_host, 0, NULL, NULL);
+                        
+    clFinish(command_queue);
 
-    const char *prg_src = "__kernel test() {}";
+    const char *prg_src = "__kernel void test(__global float *a, __global float *b, __global float *c) {"
+        "int id = get_global_id(0); c[id] = id;"
+    "}";
     cl_program prg = clCreateProgramWithSource(ctx, 1, &prg_src, NULL, &err);
     if (err != CL_SUCCESS) {
         printf("Cannot create program: %d\n", err);
     }
-    // err = clBuildProgram(prg, 0, NULL, NULL, NULL, NULL);
+    err = clBuildProgram(prg, 0, NULL, NULL, NULL, NULL);
     if (err != CL_SUCCESS) {
         printf("Cannot build program: %d\n", err);
     }
 
-
-    //clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, 100, NULL, 0, NULL,
-    //                       NULL);
-
-    //err = clEnqueueReadBuffer(command_queue, buff_c, CL_TRUE, 0,
-    //                          sizeof(float) * count, buff_host, 0, NULL, NULL);
-
-    /*
-    cl_int dev_id;
-    cl_context ctx =
-        clCreateContextFromType(0, CL_DEVICE_TYPE_GPU, NULL, NULL, NULL);
+    char buffer[1024];
+    err = clGetProgramBuildInfo(prg, device, CL_PROGRAM_BUILD_LOG, sizeof(buffer) / sizeof(char), &buffer, NULL);
     if (err != CL_SUCCESS) {
-        printf("Cannot create context: %d\n", err);
+        printf("Cannot get program build info: %d\n", err);
     }
-    cl_device_id devices[num_platform];
-    clGetContextInfo(ctx, devices, 0, NULL);
-    clEnqueueReadBuffer(command_queue, buff_c, CL_TRUE, sizeof(float) * count,
-                        buff_host, NULL, NULL, NULL);
+    printf("%s\n", buffer);
 
-    cl_kernel kernel = clCreateKernel(prg, "addition", &err);
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), &buff_a);
-    clSetKernelArg(kernel, 1, sizeof(cl_mem), &buff_b);
-    clSetKernelArg(kernel, 2, sizeof(int), count);
-
+    cl_kernel kernel = clCreateKernel(prg, "test", &err);
     if (err != CL_SUCCESS) {
-        printf("Cannot read memory: %d\n", err);
+        printf("Cannot build kernel: %d\n", err);
     }
 
-    printf("Output:\n");
-    for (int i = 0; i < count; i++) {
-        printf("%f ", buff_host[i]);
-    }*/
+    err = clSetKernelArg(kernel, 0, sizeof(buff_a), &buff_a);
+    if (err != CL_SUCCESS) printf("Cannot set kernel arg 0: %d\n", err);
+    err = clSetKernelArg(kernel, 1, sizeof(buff_b), &buff_b);
+    if (err != CL_SUCCESS) printf("Cannot set kernel arg 1: %d\n", err);
+    err = clSetKernelArg(kernel, 2, sizeof(buff_c), &buff_c);
+    if (err != CL_SUCCESS) printf("Cannot set kernel arg 2: %d\n", err);
+
+    err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &count, NULL, 0, NULL, NULL);
+    if (err != CL_SUCCESS) printf("Cannot qneueue nd range: %d\n", err);
+    err = clFinish(command_queue);
+    if (err != CL_SUCCESS) { printf("Cannot finish: %d\n", err); }
+
+    err = clEnqueueReadBuffer(command_queue, buff_c, CL_TRUE, 0, sizeof(float) * count, &buff_host, 0, NULL, NULL);
+    if (err != CL_SUCCESS) { printf("Cannot read buffer: %d\n", err); }
+
+    printf("After:\n");
+    for (size_t i = 0; i < count; i++) {
+        printf("%3.2f ", buff_host[i]);
+    }
+    printf("\n");
+
+    printf("DONE\n");
 }
