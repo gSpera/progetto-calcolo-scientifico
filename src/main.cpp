@@ -204,6 +204,8 @@ int main_(int, char**) {
 
 #include <iostream>
 
+#define TYPE_CL cl_float
+
 int main(int argc, char** argv) {
     cl_int err = CL_SUCCESS;
     cl_uint num_platform = 0;
@@ -248,8 +250,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    cl_command_queue_properties queue_properties[] = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
     cl_command_queue command_queue =
-        clCreateCommandQueueWithProperties(ctx, device, NULL, &err);
+        clCreateCommandQueueWithProperties(ctx, device, queue_properties, &err);
     if (err != CL_SUCCESS) {
         printf("Cannot create command queue: %d\n", err);
     }
@@ -257,18 +260,18 @@ int main(int argc, char** argv) {
     clFinish(command_queue);
 
     size_t count = 20;
-    cl_mem buff_a = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeof(float) * count,
+    cl_mem buff_a = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeof(TYPE_CL) * count,
                                    NULL, &err);
     if (err != CL_SUCCESS) printf("Cannot allocate buffer a: %d\n", err);
-    cl_mem buff_b = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeof(float) * count,
+    cl_mem buff_b = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeof(TYPE_CL) * count,
                                    NULL, &err);
     if (err != CL_SUCCESS) printf("Cannot allocate buffer b: %d\n", err);
     cl_mem buff_c = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
-                                   sizeof(float) * count, NULL, &err);
+                                   sizeof(TYPE_CL) * count, NULL, &err);
     if (err != CL_SUCCESS) printf("Cannot allocate buffer c: %d\n", err);
 
     clFinish(command_queue);
-    float buff_host[count] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    TYPE_CL buff_host[count] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     printf("Source:\n");
     for (size_t i = 0; i < count; i++) {
         printf("%3.2f ", buff_host[i]);
@@ -276,16 +279,29 @@ int main(int argc, char** argv) {
     printf("\n");
 
     clEnqueueWriteBuffer(command_queue, buff_a, CL_FALSE, 0,
-                         sizeof(float) * count, buff_host, 0, NULL, NULL);
+                         sizeof(TYPE_CL) * count, buff_host, 0, NULL, NULL);
     clEnqueueWriteBuffer(command_queue, buff_b, CL_FALSE, 0,
-                         sizeof(float) * count, buff_host, 0, NULL, NULL);
+                         sizeof(TYPE_CL) * count, buff_host, 0, NULL, NULL);
                         
     clFinish(command_queue);
 
-    const char *prg_src = "__kernel void test(__global float *a, __global float *b, __global float *c) {"
-        "int id = get_global_id(0); c[id] = id;"
-    "}";
-    cl_program prg = clCreateProgramWithSource(ctx, 1, &prg_src, NULL, &err);
+    FILE *fp = fopen("kernel_opencl.c", "r");
+    if (fp == NULL) {
+        printf("Cannot open kernel source\n");
+        return 1;
+    }
+    fseek(fp, 0, SEEK_END);
+    size_t fp_size = ftell(fp);
+    char *prg_src = (char *) malloc(fp_size);
+    fseek(fp, 0, SEEK_SET);
+    fread(prg_src, fp_size, 1, fp);
+    if (ferror(fp) != 0) {
+        printf("Cannot read kernel: %d\n", ferror(fp));
+        return 1;
+    }
+
+
+    cl_program prg = clCreateProgramWithSource(ctx, 1, (const char **) &prg_src, NULL, &err);
     if (err != CL_SUCCESS) {
         printf("Cannot create program: %d\n", err);
     }
@@ -313,12 +329,22 @@ int main(int argc, char** argv) {
     err = clSetKernelArg(kernel, 2, sizeof(buff_c), &buff_c);
     if (err != CL_SUCCESS) printf("Cannot set kernel arg 2: %d\n", err);
 
-    err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &count, NULL, 0, NULL, NULL);
+    cl_ulong start_time; //ns
+    cl_ulong end_time; //ns
+    cl_event event;
+
+    err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &count, NULL, 0, NULL, &event);
+    clFinish(command_queue);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(start_time), &start_time, NULL);
+    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(end_time), &end_time, NULL);
+    cl_ulong time_ns = end_time - start_time;
+    printf("Took: %ldns, %ldus\n", time_ns, time_ns / 1000);
+
     if (err != CL_SUCCESS) printf("Cannot qneueue nd range: %d\n", err);
     err = clFinish(command_queue);
     if (err != CL_SUCCESS) { printf("Cannot finish: %d\n", err); }
 
-    err = clEnqueueReadBuffer(command_queue, buff_c, CL_TRUE, 0, sizeof(float) * count, &buff_host, 0, NULL, NULL);
+    err = clEnqueueReadBuffer(command_queue, buff_c, CL_TRUE, 0, sizeof(TYPE_CL) * count, &buff_host, 0, NULL, NULL);
     if (err != CL_SUCCESS) { printf("Cannot read buffer: %d\n", err); }
 
     printf("After:\n");
