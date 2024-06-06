@@ -244,6 +244,107 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    char name[100];
+    err = clGetDeviceInfo(device, CL_DEVICE_NAME, 100, &name, NULL);
+    if (err != CL_SUCCESS) printf("Cannot get device info: %d\n", err);
+    printf("Chosed Device: %s\n", name);
+
+    cl_uint max_compute_unit;
+    err = clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(max_compute_unit), &max_compute_unit, NULL);
+    if (err != CL_SUCCESS) printf("Cannot get device max compute units: %d\n", err);
+    printf("Max compute unit: %d\n", max_compute_unit);
+
+    size_t max_work_group_size;
+    err = clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(max_work_group_size), &max_work_group_size, NULL);
+    if (err != CL_SUCCESS) printf("Cannot get max work group size: %d\n", err);
+    printf("Max work group size: %lu\n", max_work_group_size);
+
+    size_t max_work_item[256];
+    size_t max_work_group_size_count;
+    err = clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(max_work_item), &max_work_group_size, &max_work_group_size_count);
+    printf("Max work work group size: %lu %lu\n", max_work_group_size_count, max_work_group_size_count / sizeof(size_t));
+    max_work_group_size_count /= sizeof(size_t);
+    for (size_t i=0;i<max_work_group_size_count;i++) {
+        // printf("Max work item on dimension %lu: %lu\n", i, max_work_item[i]);
+    }
+
+    cl_device_partition_property sub_device_properties[] = {
+        CL_DEVICE_PARTITION_BY_COUNTS,
+        4,
+        CL_DEVICE_PARTITION_BY_COUNTS_LIST_END,
+        0,
+    };
+
+    cl_uint max_subdevices;
+    err = clGetDeviceInfo(device, CL_DEVICE_PARTITION_MAX_SUB_DEVICES, sizeof(max_subdevices), &max_subdevices, NULL);
+    if (err != CL_SUCCESS) {
+        printf("Cannot get device max subdevices: %d\n", err);
+    }
+    printf("Max subdevices: %d\n", max_subdevices);
+
+    cl_device_partition_property partition_properties[10];
+    size_t partition_properties_count;
+    err = clGetDeviceInfo(device, CL_DEVICE_PARTITION_PROPERTIES, sizeof(partition_properties), &partition_properties, &partition_properties_count);
+    printf("Size: %lu %lu\n", partition_properties_count, partition_properties_count / sizeof(cl_device_partition_property));
+    partition_properties_count /= sizeof(cl_device_partition_property);
+    if (err != CL_SUCCESS) {
+        printf("Cannot get partition properties: %d\n", err);
+    }
+    for (size_t i=0;i<partition_properties_count; i++) {
+        printf("- Device support: %ld ", partition_properties[i]);
+        switch (partition_properties[i]) {
+            case 0:
+                puts("Not Supported");
+            case CL_DEVICE_PARTITION_EQUALLY:
+                puts("Equally");
+                break;
+            case CL_DEVICE_PARTITION_BY_COUNTS:
+                puts("By Count");
+                break;
+            case CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+                puts("By Affinity Domain");
+                break;
+            default:
+                puts("Unkown");
+        }
+    }
+
+    cl_uint sub_devices_count;
+    err = clCreateSubDevices(device, sub_device_properties, 0, NULL, &sub_devices_count);
+    if (err != CL_SUCCESS) {
+        printf("Cannot estimate subdevices count: %d\n", err);
+    }
+    printf("Estimated subdevices: %d\n", sub_devices_count);
+    err = clCreateSubDevices(device, sub_device_properties, 10, devices, &sub_devices_count);
+    if (err != CL_SUCCESS) {
+        printf("Cannot create subdevice: %d\n", err);
+    }
+    switch(err) {
+        case CL_SUCCESS:
+            break;
+        case CL_INVALID_DEVICE:
+            puts(" - Invalid device");
+            break;
+        case CL_INVALID_VALUE:
+            printf(" - Invalid value\n");
+            break;
+        case CL_INVALID_DEVICE_PARTITION_COUNT:
+            printf(" - Invalid partition count\n");
+            break;
+        case CL_DEVICE_PARTITION_FAILED:
+            printf(" - Partitioning failed\n");
+            break;
+        case CL_OUT_OF_RESOURCES:
+            printf(" - Out of resources\n");
+            break;
+        case CL_OUT_OF_HOST_MEMORY:
+            printf(" - Out of host memory\n");
+            break;
+        default:
+            puts(" - Unown error");
+    }
+    printf("Created %d sub-devices\n", sub_devices_count);
+
     cl_context ctx = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
     if (err != CL_SUCCESS) {
         printf("Cannot create context\n");
@@ -333,14 +434,52 @@ int main(int argc, char** argv) {
     cl_ulong end_time; //ns
     cl_event event;
 
-    err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &count, NULL, 0, NULL, &event);
-    clFinish(command_queue);
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(start_time), &start_time, NULL);
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(end_time), &end_time, NULL);
-    cl_ulong time_ns = end_time - start_time;
-    printf("Took: %ldns, %ldus\n", time_ns, time_ns / 1000);
+    size_t n_cores = 100;
+    int n_invocations = count / n_cores;
+    size_t remain = count % n_cores;
+    cl_ulong total_time = 0;
 
-    if (err != CL_SUCCESS) printf("Cannot qneueue nd range: %d\n", err);
+    for (int i=0; i<n_invocations; i++) {
+        size_t offset = i * n_cores;
+        printf("Invoking from %ld to %ld\n", offset, offset + n_cores);
+        err = clEnqueueNDRangeKernel(command_queue, kernel,
+            1, &offset, &n_cores, // Dim, Offset, Size
+            NULL, // Local Work Size
+        0, NULL, &event);
+        clFinish(command_queue);
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(start_time), &start_time, NULL);
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(end_time), &end_time, NULL);
+        cl_ulong time_ns = end_time - start_time;
+        total_time += time_ns;
+        printf("Took: %ldns, %ldus\n", time_ns, time_ns / 1000);
+    }
+    if (remain > 0) {
+        size_t offset = count - remain;
+        err = clEnqueueNDRangeKernel(command_queue, kernel,
+            1, &offset, &remain, // Dim, Offset, Size
+            NULL, // Local Work Size
+        0, NULL, &event);
+        clFinish(command_queue);
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(start_time), &start_time, NULL);
+        clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(end_time), &end_time, NULL);
+        cl_ulong time_ns = end_time - start_time;
+        total_time += time_ns;
+        printf("Took: %ldns, %ldus\n", time_ns, time_ns / 1000);
+    }
+
+    printf("Total Took: %ldns, %ldus\n", total_time, total_time / 1000);
+
+    // err = clEnqueueNDRangeKernel(command_queue, kernel,
+    //     1, &offset, &count, // Dim, Offset, Size
+    //     NULL, // Local Work Size
+    // 0, NULL, &event);
+    // clFinish(command_queue);
+    // clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(start_time), &start_time, NULL);
+    // clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(end_time), &end_time, NULL);
+    // cl_ulong time_ns = end_time - start_time;
+    // printf("Took: %ldns, %ldus\n", time_ns, time_ns / 1000);
+
+    if (err != CL_SUCCESS) printf("Cannot enqueue nd range: %d\n", err);
     err = clFinish(command_queue);
     if (err != CL_SUCCESS) { printf("Cannot finish: %d\n", err); }
 
