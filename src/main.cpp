@@ -20,12 +20,59 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
 
+#include "opencl.h"
+
+#include <iostream>
+
 #if !SDL_VERSION_ATLEAST(2, 0, 17)
 #error This backend requires SDL 2.0.17+ because of SDL_RenderGeometry() function
 #endif
 
+void change_device(int i) {
+}
 // Main code
-int main_(int, char**) {
+int main(int, char**) {
+    Error<std::vector<Device>> devices_ = enumerateDevices();
+    if (devices_.is_error()) {
+        std::cout<<"Cannot enumarate devices: "<< devices_.get_error()<<std::endl;
+        return 1;
+    }
+    auto devices = devices_.get_value();
+
+    for (size_t i=0;i<devices.size(); i++) {
+        Error<std::string> name_ = devices[i].name();
+        if (name_.is_error()) {
+            std::cout<<"Cannot retrieve device name: "<<name_.get_error()<<std::endl;
+        } else
+            std::cout<<"Device: "<<name_.get_value() <<std::endl;
+    }
+
+    size_t current_device_index = 1;
+    Device current_device = devices[current_device_index];
+    std::string current_device_name = current_device.name().value_or_try([](std::string error) { return "ERROR:" + error; });
+    Context context = Context().init(current_device).value_or_exit([&](std::string error) {
+        std::cout<<"Cannot create context for device:"<<current_device.name().get_value()<<": "<<error<<std::endl;
+    });
+    std::vector<std::string> device_names;
+    device_names.reserve(devices.size());
+    for (Device d : devices) {
+        std::string name = d.name().value_or_exit([](std::string) {});
+        device_names.push_back(name);
+    }
+    std::string build_error;
+
+    char editor_source[1024 * 16] = {0};
+    FILE *fp = fopen("kernel_opencl.c", "r");
+    if (fp == NULL) {
+        std::cout<<"Cannot open kernel source\n"<<std::endl;
+        return 1;
+    }
+    fread(editor_source, 1024*16, 1, fp);
+    if (ferror(fp) != 0) {
+        printf("Cannot read kernel: %d\n", ferror(fp));
+        return 1;
+    }
+
     // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) !=
         0) {
@@ -116,6 +163,7 @@ int main_(int, char**) {
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Main loop
+
     bool done = false;
     while (!done) {
         // Poll and handle events (inputs, window resize, etc.)
@@ -164,6 +212,33 @@ int main_(int, char**) {
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
                         1000.0f / io.Framerate, io.Framerate);
+            
+            ImGui::End();
+
+            ImGui::Begin("Editor");
+            ImGui::Text("Dispositivo:");
+            if(ImGui::BeginCombo("##device_select", current_device_name.c_str(), 0)) {
+                for (size_t i=0;i<devices.size(); i++) {
+                    if(ImGui::Selectable(device_names[i].c_str(), current_device_index == i)) {
+                        change_device(0);
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::Button("Esegui")) {
+                std::cout<<"Compiling"<<std::endl;
+                Program prg(context, editor_source);
+                Error<Unit> err = prg.build();
+                if (err.is_error()) break;
+                build_error = err.get_error();
+
+                // Error
+                ImGui::Begin("Errore");
+                // ImGui::InputTextMultiline("##build_error", build_error.c_str(), IM_ARRAYSIZE(build_error.c_str()), ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_ReadOnly);
+                ImGui::End();
+            }
+
+            ImGui::InputTextMultiline("##editor", editor_source, IM_ARRAYSIZE(editor_source), ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_AllowTabInput);
             ImGui::End();
         }
 
@@ -206,7 +281,7 @@ int main_(int, char**) {
 
 #define TYPE_CL cl_float
 
-int main(int argc, char** argv) {
+int main_(int argc, char** argv) {
     cl_int err = CL_SUCCESS;
     cl_uint num_platform = 0;
     cl_platform_id platforms[10];
@@ -493,4 +568,5 @@ int main(int argc, char** argv) {
     printf("\n");
 
     printf("DONE\n");
+    return 0;
 }
