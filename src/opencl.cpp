@@ -7,8 +7,10 @@ Device::Device(cl_platform_id platform, cl_device_id device) {
         this->platform = platform;
         this->device = device;
 }
-Error<std::string> Device::name() {
-    Error<std::string> ret;
+std::string Device::name() { return this->m_name; }
+
+Error<Unit> Device::init() {
+    Error<Unit> ret;
     char platform_name[50];
     char device_name[100];
 
@@ -18,8 +20,9 @@ Error<std::string> Device::name() {
     err = clGetDeviceInfo(device, CL_DEVICE_NAME, 100, &device_name, NULL);
     if (err != CL_SUCCESS) return ret.set_error(std::format("Cannot get device {}:{} name", (long) platform, (long) device));
 
-    std::string name = std::string(std::string(platform_name) + " - " + std::string(device_name));
-    return ret.set_value(name);
+    this->m_name = std::string(std::string(platform_name) + " - " + std::string(device_name));
+
+    return ret.set_value(unit_value);
 }
 
 Error<std::vector<Device>> enumerateDevices() {
@@ -68,4 +71,8 @@ Error<Context> Context::init(Device dev) {
     }
 
     return ret.set_value(*this);
-};
+}
+
+Context::~Context() {
+    // TODO: Implement
+}

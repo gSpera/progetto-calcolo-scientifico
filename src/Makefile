@@ -61,7 +61,9 @@ endif
 ## BUILD RULES
 ##---------------------------------------------------------------------
 
-$(BUILD_DIR)/%.o:%.cpp $(BUILD_DIR)
+build_dir=@mkdir $(BUILD_DIR)
+$(BUILD_DIR)/%.o:%.cpp
+	@echo Building: $@
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/%.o:$(IMGUI_DIR)/%.cpp

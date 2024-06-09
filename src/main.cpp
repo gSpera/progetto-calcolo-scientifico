@@ -40,26 +40,33 @@ int main(int, char**) {
     auto devices = devices_.get_value();
 
     for (size_t i=0;i<devices.size(); i++) {
-        Error<std::string> name_ = devices[i].name();
-        if (name_.is_error()) {
-            std::cout<<"Cannot retrieve device name: "<<name_.get_error()<<std::endl;
-        } else
-            std::cout<<"Device: "<<name_.get_value() <<std::endl;
+        devices[i].init().value_or_exit([](std::string error) {
+            std::cout<<"Cannot init device:" << error <<std::endl;
+        });
+
+        std::cout<<"Device: "<< devices[i].name() <<std::endl;
     }
 
-    size_t current_device_index = 1;
-    Device current_device = devices[current_device_index];
-    std::string current_device_name = current_device.name().value_or_try([](std::string error) { return "ERROR:" + error; });
-    Context context = Context().init(current_device).value_or_exit([&](std::string error) {
-        std::cout<<"Cannot create context for device:"<<current_device.name().get_value()<<": "<<error<<std::endl;
-    });
-    std::vector<std::string> device_names;
-    device_names.reserve(devices.size());
-    for (Device d : devices) {
-        std::string name = d.name().value_or_exit([](std::string) {});
-        device_names.push_back(name);
-    }
+    size_t current_device_index;
+    Device current_device;
+    Context context;
+    auto change_device = [&](size_t index) {
+        if (index > devices.size()) {
+            std::cout<<"Called change_device with index ("<<index<<") > ("<<devices.size()<<") ignoring"<<std::endl;
+            return;
+        }
+
+        current_device_index = index;
+        current_device = devices[index];
+        context = Context().init(current_device).value_or_exit([](std::string error) {
+            std::cout<<"Cannot change device: " << error<<std::endl;
+        });
+    };
+
+    change_device(0);
+
     std::string build_error;
+
 
     char editor_source[1024 * 16] = {0};
     FILE *fp = fopen("kernel_opencl.c", "r");
@@ -217,10 +224,10 @@ int main(int, char**) {
 
             ImGui::Begin("Editor");
             ImGui::Text("Dispositivo:");
-            if(ImGui::BeginCombo("##device_select", current_device_name.c_str(), 0)) {
+            if(ImGui::BeginCombo("##device_select", current_device.name().c_str(), 0)) {
                 for (size_t i=0;i<devices.size(); i++) {
-                    if(ImGui::Selectable(device_names[i].c_str(), current_device_index == i)) {
-                        change_device(0);
+                    if(ImGui::Selectable(devices[i].name().c_str(), current_device_index == i)) {
+                        change_device(i);
                     }
                 }
                 ImGui::EndCombo();
@@ -229,8 +236,10 @@ int main(int, char**) {
                 std::cout<<"Compiling"<<std::endl;
                 Program prg(context, editor_source);
                 Error<Unit> err = prg.build();
-                if (err.is_error()) break;
-                build_error = err.get_error();
+                if (err.is_error()) {
+                    build_error = err.get_error();
+                    std::cout<<"Cannot build program: "<<build_error<<std::endl;
+                }
 
                 // Error
                 ImGui::Begin("Errore");

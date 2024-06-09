@@ -11,18 +11,22 @@ class Device {
 public:
     Device() {}; // TODO: Delete
     Device(cl_platform_id platform, cl_device_id device);
-    Error<std::string> name();
+    Error<Unit> init();
+    std::string name();
 
     cl_platform_id platform_id() { return platform; }
     cl_device_id device_id() { return device; }
 private:
     cl_platform_id platform;
     cl_device_id device;
+
+    std::string m_name;
 };
 
 class Context {
 public:
     Context() {};
+    ~Context();
     Error<Context> init(Device dev);
 
     cl_context get_context() { return this->ctx; }
