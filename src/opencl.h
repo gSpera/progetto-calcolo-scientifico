@@ -31,40 +31,48 @@ public:
 
     cl_context get_context() { return this->ctx; }
     cl_command_queue get_queue() { return this->queue; }
+    cl_device_id get_device_id() { return this->dev.device_id(); }
 private:
     Device dev;
     cl_context ctx;
     cl_command_queue queue;
 };
 
-class Program {
-public:
-    Program(Context ctx, std::string source) {
-        this->ctx = ctx;
-        this->source = source;
-    }
-    Error<Unit> build() {
-        Error<Unit> ret;
-        cl_int err;
-        const char *source = this->source.c_str();
-
-        prg = clCreateProgramWithSource(ctx.get_context(), 1, &source, NULL, &err);
-        if (err != CL_SUCCESS) return ret.set_error("Cannot create program: " + err);
-
-        err = clBuildProgram(prg, 0, NULL, NULL, NULL, NULL);
-        if (err != CL_SUCCESS) return ret.set_error("Cannot build: " + err);
-
-        kernel = clCreateKernel(prg, "kernel", &err);
-        if (err != CL_SUCCESS) return ret.set_error("Cannot create kernel: " + err);
-
-        return ret.set_value(unit_value);
-    }
-private:
-    Context ctx;
-    std::string source;
-    cl_program prg;
-    cl_kernel kernel;
+enum MemoryType {
+    VECTOR,
+    MATRIX,
+    IMAGE,
 };
+std::string memoryTypeToString(MemoryType type);
+
+class Memory {
+public:
+    Memory() {}
+    Error<Unit> init(Context ctx, size_t size);
+    Error<Unit> write(void *data);
+    Error<std::vector<char>> read();
+    cl_mem get_mem() { return this->mem; }
+private:
+    cl_command_queue command_queue;
+    cl_mem mem;
+    size_t size;
+};
+
+class Argument {
+public:
+    Argument(std::string name, MemoryType type);
+    std::string get_name() {return this->name; }
+    MemoryType get_type() {return this->type; }
+    Error<Memory> allocate();
+    void show();
+private:
+    MemoryType type;
+    std::string name;
+
+    int floatVectorSize;
+    std::vector<float> floatVector;
+};
+
 
 Error<std::vector<Device>> enumerateDevices();
 

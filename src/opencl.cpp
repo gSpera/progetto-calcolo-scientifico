@@ -1,6 +1,8 @@
 #include "opencl.h"
 #include "error.h"
 
+#include "imgui.h"
+
 #include <format>
 
 Device::Device(cl_platform_id platform, cl_device_id device) {
@@ -59,20 +61,78 @@ Error<Context> Context::init(Device dev) {
     Error<Context> ret;
     cl_int err;
     cl_device_id device_id = dev.device_id();
-    ctx = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
+    this->ctx = clCreateContext(NULL, 1, &device_id, NULL, NULL, &err);
     if (err != CL_SUCCESS) {
         return ret.set_error(std::format("Cannot create context"));
     }
 
     cl_command_queue_properties queue_properties[] = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
-    queue = clCreateCommandQueueWithProperties(ctx, device_id, queue_properties, &err);
+    this->queue = clCreateCommandQueueWithProperties(ctx, device_id, queue_properties, &err);
     if (err != CL_SUCCESS) {
         return ret.set_error(std::format("Cannot create command queue"));
     }
 
+    this->dev = dev;
     return ret.set_value(*this);
 }
 
 Context::~Context() {
     // TODO: Implement
+}
+
+
+Error<Unit> Memory::init(Context ctx, size_t size) {
+    cl_int err;
+    this->mem = clCreateBuffer(
+        ctx.get_context(),
+        CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
+        size, NULL, &err);
+    if (err != CL_SUCCESS) {
+        return Error<Unit>().set_error(std::format("Cannot create memory buffer: {}", errorToString(err)));
+    }
+    this->command_queue = ctx.get_queue();
+    return Error<Unit>().set_value(unit_value);
+}
+
+Error<Unit> Memory::write(void *data) {
+    cl_int err = clEnqueueWriteBuffer(command_queue, mem, CL_FALSE, 0,
+                         size, data, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        return Error<Unit>().set_error(std::format("Cannot write to memory buffer: {}", errorToString(err)));
+    }
+
+    return Error<Unit>().set_value(unit_value);
+}
+
+std::string memoryTypeToString(MemoryType type) {
+    switch(type) {
+        case VECTOR:
+            return "Vettore";
+        case MATRIX:
+            return "Matrice";
+        case IMAGE:
+            return "Immagine";
+        default:
+            return "UNKOWN";
+    }
+}
+
+Argument::Argument(std::string name, MemoryType type) {
+    this->name = name;
+    this->type = type;
+
+    floatVectorSize = 1;
+}
+
+Error<Memory> Argument::allocate() {
+    return Error<Memory>().set_error("NOT IMPLEMENTED");
+}
+
+void Argument::show() {
+    switch(this->type) {
+        case VECTOR:
+            if (floatVectorSize < 1) floatVectorSize = 1;
+            ImGui::InputInt("Dimensione", &this->floatVectorSize);
+            this->floatVector.resize(floatVectorSize);
+    }
 }

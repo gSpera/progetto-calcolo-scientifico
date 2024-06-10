@@ -3,6 +3,11 @@
 
 #include <string>
 #include <functional>
+#include <unordered_map>
+
+#include <CL/cl.h>
+
+std::string errorToString(cl_int err);
 
 typedef bool Unit;
 const Unit unit_value = false;

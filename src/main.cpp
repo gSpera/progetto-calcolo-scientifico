@@ -21,6 +21,7 @@
 #include "imgui_impl_sdlrenderer2.h"
 
 #include "opencl.h"
+#include "program.h"
 
 #include <iostream>
 
@@ -44,7 +45,7 @@ int main(int, char**) {
             std::cout<<"Cannot init device:" << error <<std::endl;
         });
 
-        std::cout<<"Device: "<< devices[i].name() <<std::endl;
+        std::cout<<"Device: "<< devices[i].name() << " ("<<devices[i].device_id()<<")" <<std::endl;
     }
 
     size_t current_device_index;
@@ -65,8 +66,16 @@ int main(int, char**) {
 
     change_device(0);
 
+    // State variables
     std::string build_error;
-
+    std::vector<std::string> kernel_names;
+    size_t current_kernel_index = 0;
+    Program prg;
+    std::vector<Argument> exec_args;
+    size_t n_cores = 1024;
+    size_t exec_count = 100;
+    char new_arg_buff[16];
+    MemoryType new_arg_type;
 
     char editor_source[1024 * 16] = {0};
     FILE *fp = fopen("kernel_opencl.c", "r");
@@ -232,23 +241,106 @@ int main(int, char**) {
                 }
                 ImGui::EndCombo();
             }
-            if (ImGui::Button("Esegui")) {
-                std::cout<<"Compiling"<<std::endl;
-                Program prg(context, editor_source);
-                Error<Unit> err = prg.build();
-                if (err.is_error()) {
-                    build_error = err.get_error();
-                    std::cout<<"Cannot build program: "<<build_error<<std::endl;
+            if (kernel_names.size() > 0) {
+                ImGui::Text("Kernel:");
+                if(ImGui::BeginCombo("##kernel_select", kernel_names[current_kernel_index].c_str(), 0)) {
+                    for(size_t i=0;i<kernel_names.size(); i++) {
+                        if(ImGui::Selectable(kernel_names[i].c_str(), current_kernel_index == i)) {
+                            current_kernel_index = i;
+                        }
+                    }
+                    ImGui::EndCombo();
                 }
+            }
 
-                // Error
-                ImGui::Begin("Errore");
-                // ImGui::InputTextMultiline("##build_error", build_error.c_str(), IM_ARRAYSIZE(build_error.c_str()), ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_ReadOnly);
-                ImGui::End();
+            if (ImGui::Button("Compila")) {
+                std::cout<<"Compiling"<<std::endl;
+                prg = Program(context, editor_source);
+                bool ok;
+                build_error = prg.build(&ok);
+
+                auto kernels_ = prg.kernel_names();
+                if (kernels_.is_error()) {
+                    std::cout<<"Cannot get kernel names: "<< kernels_.get_error() << std::endl;
+                }
+                kernel_names = kernels_.get_value();
+
+                if (!ok) {
+                    std::cout<<"Cannot build program"<<std::endl;
+                    std::cout<<build_error<<std::endl;
+                }
+            }
+            if(kernel_names.size() > 0 && (ImGui::SameLine(), ImGui::Button("Esegui"))) {
+                std::cout<<"Preparing for execution"<<std::endl;
+                bool ok;
+                std::string build_log = prg.prepare_for_execution(kernel_names[current_kernel_index], exec_args, &ok);
+                build_error.append(build_log);
+
+                if (ok) {
+                    cl_long exec_time;
+                    build_error.append("Executing\n");
+                    Error<std::string> err = prg.execute(n_cores, exec_count, &exec_time);
+                    if (err.is_error()) {
+                        build_error.append("*** Execution FAILED ***\n");
+                        build_error.append(err.get_error());
+                    } else {
+                        build_error.append("*** Execution SUCCEDDED ***\n");
+                        build_error.append(err.get_value());
+                    }
+                }
             }
 
             ImGui::InputTextMultiline("##editor", editor_source, IM_ARRAYSIZE(editor_source), ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_AllowTabInput);
             ImGui::End();
+
+            if (build_error != "") {
+                ImGui::Begin("Log");
+                ImGui::InputTextMultiline("Build Error", (char *) build_error.c_str(), build_error.size(), ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_ReadOnly);
+                ImGui::End();
+            }
+
+            ImGui::Begin("Argomenti");
+            for (size_t i=0;i<exec_args.size();i++) {
+                Argument arg = exec_args[i];
+                ImGui::Text(arg.get_name().c_str());
+                ImGui::SameLine();
+                ImGui::Text(memoryTypeToString(arg.get_type()).c_str());
+                ImGui::SameLine();
+                if(ImGui::Button("Elimina")) {
+                    exec_args.erase(exec_args.begin() + i);
+                }
+            }
+
+            ImGui::SeparatorText("Nuovo argomento");
+            ImGui::Text("Nome:");
+            ImGui::SameLine();
+            ImGui::InputText("##new_arg_name", new_arg_buff, IM_ARRAYSIZE(new_arg_buff), 0);
+            ImGui::Text("Tipo:");
+            ImGui::SameLine();
+            if(ImGui::BeginCombo("##new_arg_type", memoryTypeToString(new_arg_type).c_str(), 0)) {
+                #define X(X) if(ImGui::Selectable(memoryTypeToString(X).c_str(), X == new_arg_type)) { new_arg_type = X; }
+                X(VECTOR);
+                X(MATRIX);
+                X(IMAGE);
+                #undef X
+                ImGui::EndCombo();
+            }
+
+            if (ImGui::Button("Aggiungi")) {
+                // Create new argument
+                if (std::string(new_arg_buff) != "") {
+                    Argument arg = Argument(std::string(new_arg_buff), new_arg_type);
+                    exec_args.push_back(arg);
+                }
+            }
+            ImGui::End();
+
+            for (size_t i=0;i<exec_args.size();i++) {
+                Argument arg = exec_args[i];
+                ImGui::Begin(std::format("Argomento: {}", arg.get_name()).c_str());
+                arg.show();
+                ImGui::End();
+            }
         }
 
         SDL_LockTexture(framebuffer_texture, NULL, (void**)&framebuffer,
