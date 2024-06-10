@@ -3,6 +3,8 @@
 
 #include "opencl.h"
 
+#include <vector>
+
 class Program {
 public:
     Program() {};
@@ -14,6 +16,8 @@ public:
     std::string prepare_for_execution(std::string kernel_name, std::vector<Argument> args, bool *ok);
     Error<std::string> execute(size_t n_cores, size_t count, cl_long *time);
     Error<std::vector<std::string>> kernel_names();
+
+    std::vector<Memory> mems;
 private:
     Context ctx;
     std::string source;

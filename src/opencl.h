@@ -48,9 +48,9 @@ std::string memoryTypeToString(MemoryType type);
 class Memory {
 public:
     Memory() {}
-    Error<Unit> init(Context ctx, size_t size);
+    Error<Memory> init(Context ctx, size_t size);
     Error<Unit> write(void *data);
-    Error<std::vector<char>> read();
+    Error<uint8_t *> read();
     cl_mem get_mem() { return this->mem; }
 private:
     cl_command_queue command_queue;
@@ -63,13 +63,16 @@ public:
     Argument(std::string name, MemoryType type);
     std::string get_name() {return this->name; }
     MemoryType get_type() {return this->type; }
-    Error<Memory> allocate();
+    Error<Memory> push_to_gpu(Context ctx);
+    Error<Unit> pop_from_gpu(Memory mem);
     void show();
+    size_t size();
 private:
     MemoryType type;
     std::string name;
 
-    int floatVectorSize;
+    int floatMatrixRows;
+    int floatMatrixCols;
     std::vector<float> floatVector;
 };
 

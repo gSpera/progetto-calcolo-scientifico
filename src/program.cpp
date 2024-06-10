@@ -1,6 +1,8 @@
 #include <iostream>
 #include "program.h"
 
+#include <format>
+
 std::string Program::build(bool *ok) {
     *ok = false;
     cl_int err;
@@ -46,21 +48,26 @@ std::string Program::prepare_for_execution(std::string kernel_name, std::vector<
     if (err != CL_SUCCESS) return build_log + "\nCannot get kernel number of arguments: " + errorToString(err);
 
     if (arg_count != args.size()) {
-        return std::format("{}\nWrong number of arguments {} (required by kernel) != {} (provided)", build_log, arg_count, args.size());
+        return std::format("{}\nWrong number of arguments {} (required by kernel) != {} (provided)\n", build_log, arg_count, args.size());
     }
     
-    build_log.append("Preparing arguments\n");
+    build_log.append(std::format("Preparing {} arguments\n", args.size()));
+    this->mems.clear();
+    this->mems.reserve(args.size());
     for (size_t i=0;i<args.size();i++) {
-        Error<Memory> mem_ = args[i].allocate();
+        Error<Memory> mem_ = args[i].push_to_gpu(ctx);
         if (mem_.is_error()) {
             return std::format("Cannot allocate memory: {}", mem_.get_error());
         }
 
         void *ptr = (void *) mem_.get_value().get_mem();
-        err = clSetKernelArg(kernel, 0, sizeof(ptr), &ptr);
+        err = clSetKernelArg(kernel, i, sizeof(ptr), &ptr);
         if (err != CL_SUCCESS) {
-            return std::format("{}\nCannot set {}nth argument: {}", build_log, i, errorToString(err));
+            return std::format("{}\nCannot set {}nth argument: {}\n", build_log, i, errorToString(err));
         }
+
+        this->mems.push_back(mem_.get_value());
+        build_log.append(std::format(" - Argument {} prepared ({})\n", args[i].get_name(), ptr));
     }
 
     build_log.append("Done\n");
@@ -83,12 +90,13 @@ Error<std::string> Program::execute(size_t n_cores, size_t count, cl_long *time)
     auto execute = [&] (size_t offset_, size_t len_) {
         size_t offset = offset_;
         size_t len = len_;
+        log.append(std::format(" - Sub Execution offset: {} len: {}\n", offset, len));
         err = clEnqueueNDRangeKernel(ctx.get_queue(), kernel,
             1, &offset, &len, // Dim, Offset, Size
             NULL, // Local Work Size
         0, NULL, &event);
         if (err != CL_SUCCESS) {
-            return Error<Unit>().set_error(errorToString(err));
+            return Error<Unit>().set_error("Cannot enqueue nd range: " + errorToString(err));
         }
 
         clFinish(ctx.get_queue());
@@ -104,12 +112,12 @@ Error<std::string> Program::execute(size_t n_cores, size_t count, cl_long *time)
         size_t offset = i * n_cores;
         log.append(std::format("Invoking from {} to {}\n", offset, offset + n_cores));
         auto ret2 = execute(offset, n_cores);
-        if (ret2.is_error()) return ret.set_error(ret2.get_error());
+        if (ret2.is_error()) return ret.set_error(std::format("{}Error: {}", log, ret2.get_error()));
     }
     if (remain > 0) {
         size_t offset = count - remain;
         auto ret2 = execute(offset, remain);
-        if (ret2.is_error()) return ret.set_error(ret2.get_error());
+        if (ret2.is_error()) return ret.set_error(std::format("{}Error: {}", log, ret2.get_error()));
     }
 
     log.append(std::format("Total took: {}ns, {}us\n", total_time, total_time / 1000));

@@ -73,7 +73,7 @@ int main(int, char**) {
     Program prg;
     std::vector<Argument> exec_args;
     size_t n_cores = 1024;
-    size_t exec_count = 100;
+    size_t exec_count = 1;
     char new_arg_buff[16];
     MemoryType new_arg_type;
 
@@ -175,6 +175,12 @@ int main(int, char**) {
     // ImFont* font =
     // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f,
     // nullptr, io.Fonts->GetGlyphRangesJapanese()); IM_ASSERT(font != nullptr);
+    auto font = io.Fonts->AddFontFromFileTTF("./FiraCode-Regular.ttf", 13.0f);
+    if (font == nullptr || !font->IsLoaded()) {
+        std::cout<<"Cannot load font"<<std::endl;
+    } else {
+        ImGui::PushFont(font);
+    }
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
@@ -286,6 +292,10 @@ int main(int, char**) {
                     } else {
                         build_error.append("*** Execution SUCCEDDED ***\n");
                         build_error.append(err.get_value());
+
+                        for (size_t i=0;i<exec_args.size();i++) {
+                            exec_args[i].pop_from_gpu(prg.mems[i]);
+                        }
                     }
                 }
             }
@@ -302,12 +312,24 @@ int main(int, char**) {
             ImGui::Begin("Argomenti");
             for (size_t i=0;i<exec_args.size();i++) {
                 Argument arg = exec_args[i];
-                ImGui::Text(arg.get_name().c_str());
+                ImGui::Text(std::format("{}: {}", i, arg.get_name()).c_str());
                 ImGui::SameLine();
                 ImGui::Text(memoryTypeToString(arg.get_type()).c_str());
                 ImGui::SameLine();
                 if(ImGui::Button("Elimina")) {
                     exec_args.erase(exec_args.begin() + i);
+                }
+                ImGui::SameLine();
+                if(ImGui::Button(std::format("/\\##{}", i).c_str()) && i != 0) {
+                    Argument tmp = exec_args[i-1];
+                    exec_args[i-1] = exec_args[i];
+                    exec_args[i] = tmp;
+                }
+                ImGui::SameLine();
+                if(ImGui::Button(std::format("\\/##{}", i).c_str()) && i != exec_args.size()-1) {
+                    Argument tmp = exec_args[i+1];
+                    exec_args[i+1] = exec_args[i];
+                    exec_args[i] = tmp;
                 }
             }
 
@@ -333,10 +355,12 @@ int main(int, char**) {
                     exec_args.push_back(arg);
                 }
             }
+            const size_t u64_one = 1;
+            ImGui::InputScalar("Range esecuzione", ImGuiDataType_U64, &exec_count, &u64_one);
             ImGui::End();
 
             for (size_t i=0;i<exec_args.size();i++) {
-                Argument arg = exec_args[i];
+                Argument& arg = exec_args[i];
                 ImGui::Begin(std::format("Argomento: {}", arg.get_name()).c_str());
                 arg.show();
                 ImGui::End();
