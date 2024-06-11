@@ -14,6 +14,7 @@
 // SDL+OpenGL on Linux/OSX.
 
 #include <SDL.h>
+#include <SDL2/SDL_image.h>
 #include <stdio.h>
 
 #include "imgui.h"
@@ -29,8 +30,6 @@
 #error This backend requires SDL 2.0.17+ because of SDL_RenderGeometry() function
 #endif
 
-void change_device(int i) {
-}
 // Main code
 int main(int, char**) {
     Error<std::vector<Device>> devices_ = enumerateDevices();
@@ -130,6 +129,11 @@ int main(int, char**) {
     }
     uint32_t* framebuffer = new uint32_t[800 * 800];
     int framebuffer_pitch;
+
+    // Load image
+    SDL_Surface *img = IMG_Load("monalisa-483x720.jpg");
+    img = SDL_ConvertSurfaceFormat(img, SDL_PIXELFORMAT_RGB888, 0);
+    SDL_Texture *img_texture = SDL_CreateTextureFromSurface(renderer, img);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -351,8 +355,18 @@ int main(int, char**) {
             if (ImGui::Button("Aggiungi")) {
                 // Create new argument
                 if (std::string(new_arg_buff) != "") {
-                    Argument arg = Argument(std::string(new_arg_buff), new_arg_type);
-                    exec_args.push_back(arg);
+                    Argument arg("", VECTOR);
+                    switch(new_arg_type) {
+                    case VECTOR:
+                    case MATRIX:
+                        arg = Argument(std::string(new_arg_buff), new_arg_type);
+                        exec_args.push_back(arg);
+                        break;
+                    case IMAGE:
+                        arg = Argument(std::string(new_arg_buff), renderer);
+                        exec_args.push_back(arg);
+                        break;
+                    }
                 }
             }
             const size_t u64_one = 1;

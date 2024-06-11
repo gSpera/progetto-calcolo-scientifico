@@ -2,6 +2,7 @@
 #define H_OPENCL
 
 #include <CL/cl.h>
+#include <SDL.h>
 #include <vector>
 #include <format>
 
@@ -61,6 +62,7 @@ private:
 class Argument {
 public:
     Argument(std::string name, MemoryType type);
+    Argument(std::string name, SDL_Renderer *renderer);
     std::string get_name() {return this->name; }
     MemoryType get_type() {return this->type; }
     Error<Memory> push_to_gpu(Context ctx);
@@ -74,6 +76,9 @@ private:
     int floatMatrixRows;
     int floatMatrixCols;
     std::vector<float> floatVector;
+    SDL_Texture *texture;
+    char image_path_tmp[128];
+    SDL_Renderer *image_renderer;
 };
 
 

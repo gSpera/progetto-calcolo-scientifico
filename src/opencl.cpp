@@ -6,6 +6,8 @@
 #include <format>
 #include <iostream>
 
+#include <SDL2/SDL_image.h>
+
 Device::Device(cl_platform_id platform, cl_device_id device) {
         this->platform = platform;
         this->device = device;
@@ -137,6 +139,17 @@ Argument::Argument(std::string name, MemoryType type) {
 
     floatMatrixRows = 1;
     floatMatrixCols = 1;
+    image_path_tmp[0] = 0;
+}
+Argument::Argument(std::string name, SDL_Renderer *renderer) {
+    this->name = name;
+    this->type = IMAGE;
+
+    floatMatrixRows = 1;
+    floatMatrixCols = 1;
+
+    this->image_renderer = renderer;
+    strcpy(image_path_tmp, "monalisa-483x720.jpg");
 }
 
 Error<Memory> Argument::push_to_gpu(Context ctx) {
@@ -205,6 +218,41 @@ void Argument::show() {
             ImGui::PopItemWidth();
             ImGui::EndChild();
             break;
+        case IMAGE:
+            ImGui::InputText("Percorso", this->image_path_tmp, IM_ARRAYSIZE(this->image_path_tmp));
+            ImGui::SameLine();
+            if(ImGui::Button("Carica")) {
+                std::cout<<"Loading image: "<<this->image_path_tmp<<std::endl;
+                SDL_Surface *img = IMG_Load(this->image_path_tmp);
+                if (img == nullptr) {
+                    std::cout<<"Cannot load image: "<<this->image_path_tmp<<std::endl;
+                    std::cout<<SDL_GetError()<<std::endl;
+                }
+                img = SDL_ConvertSurfaceFormat(img, SDL_PIXELFORMAT_RGB888, 0);
+                if (img == nullptr) {
+                    std::cout<<"Cannot convert image surface: "<<this->image_path_tmp<<std::endl;
+                    std::cout<<SDL_GetError()<<std::endl;
+                }
+                SDL_Texture *img_texture = SDL_CreateTextureFromSurface(this->image_renderer, img);
+                if (img_texture == nullptr) {
+                    std::cout<<"Cannot create texture: "<<this->image_path_tmp<<std::endl;
+                    std::cout<<SDL_GetError()<<std::endl;
+                }
+
+                if (SDL_QueryTexture(img_texture, NULL, NULL, &this->floatMatrixCols, &this->floatMatrixRows) != 0) {
+                    std::cout<<"Cannot query image size: "<<SDL_GetError()<<std::endl;
+                }
+                std::cout<<"Done loading image"<<std::endl;
+                this->texture = img_texture;
+            }
+
+            ImGui::InputInt("Larghezza", &this->floatMatrixCols);
+            ImGui::InputInt("Altezza", &this->floatMatrixRows);
+
+            if (this->texture != nullptr)
+                ImGui::Image((void *) this->texture, ImVec2(floatMatrixCols, floatMatrixRows));
+            else
+                ImGui::Text("Nessuna immagine caricata");
     }
 }
 
