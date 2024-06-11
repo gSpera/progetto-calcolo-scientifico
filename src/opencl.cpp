@@ -181,7 +181,30 @@ void Argument::show() {
                 ImGui::SameLine();
                 ImGui::InputScalar(std::format("##arg_{}_{}", name, i).c_str(), ImGuiDataType_Float, &floatVector[i], NULL);
             }
-            ImGui::Text("");
+            break;
+        case MATRIX:
+            ImGui::InputInt("Righe", &floatMatrixRows);
+            ImGui::InputInt("Colonne", &floatMatrixCols);
+            this->floatVector.resize(floatMatrixRows * floatMatrixCols);
+
+            if(ImGui::Button("Randomizza")) {
+                for (int row = 0; row < floatMatrixRows; row++) {
+                    for(int col=0;col<floatMatrixCols;col++) {
+                        floatVector[row * floatMatrixCols + col] = ((float) (rand() % 1000)) / 10;
+                    }
+                }
+            }
+            ImGui::BeginChild("##arg_matrix", ImVec2(-FLT_MIN, -FLT_MIN), 0, ImGuiWindowFlags_HorizontalScrollbar);
+            ImGui::PushItemWidth(5 * 12.0f);
+            for (int row = 0; row < floatMatrixRows; row++) {
+                for(int col=0;col<floatMatrixCols;col++) {
+                    if (col != 0) ImGui::SameLine();
+                    ImGui::InputScalar(std::format("##arg_{}_{}_{}", name, row, col).c_str(), ImGuiDataType_Float, &floatVector[row * floatMatrixCols + col], NULL);
+                }
+            }
+            ImGui::PopItemWidth();
+            ImGui::EndChild();
+            break;
     }
 }
 
