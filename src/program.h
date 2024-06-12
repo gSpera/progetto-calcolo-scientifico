@@ -1,7 +1,11 @@
 #ifndef H_PROGRAM
 #define H_PROGRAM
 
-#include "opencl.h"
+#include <CL/cl.h>
+
+#include "memory.h"
+#include "context.h"
+#include "argument.h"
 
 #include <vector>
 

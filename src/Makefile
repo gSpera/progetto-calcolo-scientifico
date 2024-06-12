@@ -17,7 +17,7 @@
 EXE = progetto_spera_giovanni
 IMGUI_DIR = ../imgui
 BUILD_DIR:=build
-SOURCES = main.cpp opencl.cpp program.cpp error.cpp
+SOURCES = main.cpp program.cpp error.cpp device.cpp context.cpp memory.cpp argument.cpp
 SOURCES += $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp
 SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp $(IMGUI_DIR)/backends/imgui_impl_sdlrenderer2.cpp
 OBJS = $(addprefix $(BUILD_DIR)/,$(addsuffix .o, $(basename $(notdir $(SOURCES)))))
@@ -63,7 +63,6 @@ endif
 
 build_dir=@mkdir $(BUILD_DIR)
 $(BUILD_DIR)/%.o:%.cpp
-	@echo Building: $@
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/%.o:$(IMGUI_DIR)/%.cpp
