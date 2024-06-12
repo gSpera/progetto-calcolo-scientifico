@@ -10,27 +10,27 @@ Argument::Argument(std::string name, MemoryType type) {
     this->name = name;
     this->type = type;
 
-    floatMatrixRows = 1;
-    floatMatrixCols = 1;
+    set_rows(1);
+    set_cols(1);
     image_path_tmp[0] = 0;
 }
 Argument::Argument(std::string name, SDL_Renderer *renderer) {
     this->name = name;
     this->type = IMAGE;
 
-    floatMatrixRows = 1;
-    floatMatrixCols = 1;
+    set_rows(1);
+    set_cols(1);
 
     this->image_renderer = renderer;
     strcpy(image_path_tmp, "monalisa-483x720.jpg");
 }
 
 Error<Memory> Argument::push_to_gpu(Context ctx) {
-    size_t size = this->size();
+    size_t size = this->size_as<uint8_t>();
     Error<Memory> mem_ = Memory().init(ctx, size);
     if (mem_.is_error()) { return mem_; }
     Memory mem = mem_.get_value();
-    Error<Unit> ret = mem.write((void *) floatVector.data());
+    Error<Unit> ret = mem.write((void *) this->data.data());
 
     if (ret.is_error()) {
         return Error<Memory>().set_error(ret.get_error());
@@ -43,49 +43,53 @@ Error<Unit> Argument::pop_from_gpu(Memory mem) {
     Error<uint8_t *> buffer_ = mem.read();
     if (buffer_.is_error()) return Error<Unit>().set_error("Cannot read memory: " + buffer_.get_error());
     uint8_t *buffer = buffer_.get_value();
-    memcpy(this->floatVector.data(), buffer, size());
+    memcpy(this->data.data(), buffer, size_as<uint8_t>());
     return Error<Unit>().set_value(unit_value);
 }
 
 void Argument::show() {
-    if (floatMatrixRows < 1) floatMatrixRows = 1;
-    if (floatMatrixCols < 1) floatMatrixCols = 1;
+    if (get_rows() < 1) set_rows(1);
+    if (get_cols() < 1) set_cols(1);
+
+    int rows = get_rows();
+    int cols = get_cols();
+    float *floatVector = view_as<float>();
 
     switch(this->type) {
         case VECTOR:
-            ImGui::InputInt("Dimensione", &floatMatrixRows);
-            this->floatVector.resize(floatMatrixRows);
+            ImGui::InputInt("Dimensione", &rows);
+            set_rows(rows);
+            floatVector = view_as<float>();
 
             if(ImGui::Button("Randomizza")) {
-                for(size_t i=0;i<floatVector.size();i++) {
+                for(int i=0;i<count();i++) {
                     floatVector[i] = ((float) (rand() % 1000)) / 10;
                 }
             }
 
-            for (size_t i=0;i<floatVector.size();i++) {
+            for (int i=0;i<this->count();i++) {
                 ImGui::Text(std::format("Posizione {}:", i).c_str());
                 ImGui::SameLine();
                 ImGui::InputScalar(std::format("##arg_{}_{}", name, i).c_str(), ImGuiDataType_Float, &floatVector[i], NULL);
             }
             break;
         case MATRIX:
-            ImGui::InputInt("Righe", &floatMatrixRows);
-            ImGui::InputInt("Colonne", &floatMatrixCols);
-            this->floatVector.resize(floatMatrixRows * floatMatrixCols);
+            ImGui::InputInt("Righe", &rows);
+            ImGui::InputInt("Colonne", &cols);
 
             if(ImGui::Button("Randomizza")) {
-                for (int row = 0; row < floatMatrixRows; row++) {
-                    for(int col=0;col<floatMatrixCols;col++) {
-                        floatVector[row * floatMatrixCols + col] = ((float) (rand() % 1000)) / 10;
+                for (int row = 0; row < rows; row++) {
+                    for(int col=0;col<cols;col++) {
+                        floatVector[row * cols + col] = ((float) (rand() % 1000)) / 10;
                     }
                 }
             }
             ImGui::BeginChild("##arg_matrix", ImVec2(-FLT_MIN, -FLT_MIN), 0, ImGuiWindowFlags_HorizontalScrollbar);
             ImGui::PushItemWidth(5 * 12.0f);
-            for (int row = 0; row < floatMatrixRows; row++) {
-                for(int col=0;col<floatMatrixCols;col++) {
+            for (int row = 0; row < rows; row++) {
+                for(int col=0;col<cols;col++) {
                     if (col != 0) ImGui::SameLine();
-                    ImGui::InputScalar(std::format("##arg_{}_{}_{}", name, row, col).c_str(), ImGuiDataType_Float, &floatVector[row * floatMatrixCols + col], NULL);
+                    ImGui::InputScalar(std::format("##arg_{}_{}_{}", name, row, col).c_str(), ImGuiDataType_Float, &floatVector[row * cols + col], NULL);
                 }
             }
             ImGui::PopItemWidth();
@@ -112,30 +116,45 @@ void Argument::show() {
                     std::cout<<SDL_GetError()<<std::endl;
                 }
 
-                if (SDL_QueryTexture(img_texture, NULL, NULL, &this->floatMatrixCols, &this->floatMatrixRows) != 0) {
+                int rows, cols;
+                if (SDL_QueryTexture(img_texture, NULL, NULL, &cols, &rows) != 0) {
                     std::cout<<"Cannot query image size: "<<SDL_GetError()<<std::endl;
                 }
+                set_rowscols(rows, cols);
+
                 std::cout<<"Done loading image"<<std::endl;
                 this->texture = img_texture;
             }
 
-            ImGui::InputInt("Larghezza", &this->floatMatrixCols);
-            ImGui::InputInt("Altezza", &this->floatMatrixRows);
+            int rows = get_rows();
+            int cols = get_cols();
+            ImGui::InputInt("Larghezza", &cols);
+            ImGui::InputInt("Altezza", &rows);
+            set_rowscols(rows, cols);
 
             if (this->texture != nullptr)
-                ImGui::Image((void *) this->texture, ImVec2(floatMatrixCols, floatMatrixRows));
+                ImGui::Image((void *) this->texture, ImVec2(cols, rows));
             else
                 ImGui::Text("Nessuna immagine caricata");
     }
 }
 
-size_t Argument::size() {
-    switch(this->type) {
-        case MATRIX:
-        case VECTOR:
-            return floatMatrixRows * floatMatrixCols * sizeof(cl_float);
-    }
+int Argument::count() {
+    return (size_t) (get_rows() * get_cols());
+}
 
-    exit(1);
-    return -1;
+void Argument::resize() {
+    size_t new_size = get_rows() * get_cols();
+    data.resize(new_size);
+}
+
+template<class T>
+T *Argument::view_as() {
+    return reinterpret_cast<T *>(data.data());
+}
+
+template<class T>
+size_t Argument::size_as() {
+    std::cout<<std::format("Vector of size {} with type {} has size {}", data.size(), sizeof(T), data.size() / sizeof(T))<<std::endl;
+    return data.size() / sizeof(T);
 }
