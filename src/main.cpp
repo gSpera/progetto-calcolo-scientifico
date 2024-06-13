@@ -245,7 +245,7 @@ int main(int, char**) {
 
             ImGui::Begin("Argomenti");
             for (size_t i=0;i<exec_args.size();i++) {
-                Argument arg = exec_args[i];
+                Argument &arg = exec_args[i];
                 ImGui::Text(std::format("{}: {}", i, arg.get_name()).c_str());
                 ImGui::SameLine();
                 ImGui::Text(memoryTypeToString(arg.get_type()).c_str());
@@ -255,13 +255,13 @@ int main(int, char**) {
                 }
                 ImGui::SameLine();
                 if(ImGui::Button(std::format("/\\##{}", i).c_str()) && i != 0) {
-                    Argument tmp = exec_args[i-1];
+                    Argument &tmp = exec_args[i-1];
                     exec_args[i-1] = exec_args[i];
                     exec_args[i] = tmp;
                 }
                 ImGui::SameLine();
                 if(ImGui::Button(std::format("\\/##{}", i).c_str()) && i != exec_args.size()-1) {
-                    Argument tmp = exec_args[i+1];
+                    Argument &tmp = exec_args[i+1];
                     exec_args[i+1] = exec_args[i];
                     exec_args[i] = tmp;
                 }
@@ -285,11 +285,11 @@ int main(int, char**) {
             if (ImGui::Button("Aggiungi")) {
                 // Create new argument
                 if (std::string(new_arg_buff) != "") {
-                    Argument arg("", VECTOR);
+                    Argument arg("", VECTOR, 0);
                     switch(new_arg_type) {
                     case VECTOR:
                     case MATRIX:
-                        arg = Argument(std::string(new_arg_buff), new_arg_type);
+                        arg = Argument(std::string(new_arg_buff), new_arg_type, sizeof(float));
                         exec_args.push_back(arg);
                         break;
                     case IMAGE:

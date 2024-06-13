@@ -38,6 +38,16 @@ Error<uint8_t *> Memory::read() {
     return Error<uint8_t *>().set_value(data);
 }
 
+Error<Unit> Memory::read_to(void *dst) {
+    cl_int err = clEnqueueReadBuffer(command_queue, mem, CL_TRUE, 0,
+        size, dst, 0, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        return Error<Unit>().set_error(std::format("Cannot read buffer: {}", errorToString(err)));
+    }
+
+    return Error<Unit>().set_value(unit_value);
+}
+
 std::string memoryTypeToString(MemoryType type) {
     switch(type) {
         case VECTOR:
