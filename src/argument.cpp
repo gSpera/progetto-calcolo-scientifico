@@ -174,11 +174,29 @@ void Argument::show() {
                 this->texture = img_texture;
             }
 
+            ImGui::SameLine();
+            if (ImGui::Button("Salva")) {
+                if (IMG_SavePNG(this->image_surface, this->image_path_tmp) != 0) {
+                    std::cout<<"Impossibile salvare immagine: "<<SDL_GetError()<<std::endl;
+                }
+            }
+
             int rows = get_rows();
             int cols = get_cols();
             ImGui::InputInt("Larghezza", &cols);
             ImGui::InputInt("Altezza", &rows);
             set_rowscols(rows, cols);
+
+            if (ImGui::Button("Nuova immagine")) {
+                this->image_surface = SDL_CreateRGBSurface(0, cols, rows, 32, 0, 0, 0, 0);
+                if (this->image_surface == nullptr) {
+                    std::cout<<"Cannot create surface: "<<SDL_GetError()<<std::endl;
+                }
+                this->texture = SDL_CreateTextureFromSurface(this->image_renderer, this->image_surface);
+                if (this->texture == nullptr) {
+                    std::cout<<"Cannot create texture:"<<SDL_GetError()<<std::endl;
+                }
+            }
 
             if (this->texture != nullptr)
                 ImGui::Image((void *) this->texture, ImVec2(cols, rows));
