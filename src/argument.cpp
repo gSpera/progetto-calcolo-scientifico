@@ -187,6 +187,8 @@ void Argument::show() {
             ImGui::InputInt("Altezza", &rows);
             set_rowscols(rows, cols);
 
+            ImGui::Text(std::format("Ci sono {} pixel", rows * cols).c_str());
+            ImGui::SameLine();
             if (ImGui::Button("Nuova immagine")) {
                 this->image_surface = SDL_CreateRGBSurface(0, cols, rows, 32, 0, 0, 0, 0);
                 if (this->image_surface == nullptr) {

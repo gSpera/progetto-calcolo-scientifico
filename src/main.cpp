@@ -250,18 +250,18 @@ int main(int, char**) {
                 ImGui::SameLine();
                 ImGui::Text(memoryTypeToString(arg.get_type()).c_str());
                 ImGui::SameLine();
-                if(ImGui::Button("Elimina")) {
+                if(ImGui::Button(std::format("Elimina##{}", i).c_str())) {
                     exec_args.erase(exec_args.begin() + i);
                 }
                 ImGui::SameLine();
                 if(ImGui::Button(std::format("/\\##{}", i).c_str()) && i != 0) {
-                    Argument &tmp = exec_args[i-1];
+                    Argument tmp = exec_args[i-1];
                     exec_args[i-1] = exec_args[i];
                     exec_args[i] = tmp;
                 }
                 ImGui::SameLine();
                 if(ImGui::Button(std::format("\\/##{}", i).c_str()) && i != exec_args.size()-1) {
-                    Argument &tmp = exec_args[i+1];
+                    Argument tmp = exec_args[i+1];
                     exec_args[i+1] = exec_args[i];
                     exec_args[i] = tmp;
                 }
@@ -283,8 +283,18 @@ int main(int, char**) {
             }
 
             if (ImGui::Button("Aggiungi")) {
+                // Check if name is unique
+                bool name_is_unique = true;
+                for (size_t i=0;i<exec_args.size();i++) {
+                    if (strcmp(new_arg_buff, exec_args[i].get_name().c_str()) == 0) {
+                        std::cout<<"Name in not unique"<<std::endl;
+                        name_is_unique = false;
+                        break;
+                    }
+                }
+
                 // Create new argument
-                if (std::string(new_arg_buff) != "") {
+                if (name_is_unique && std::string(new_arg_buff) != "") {
                     Argument arg("", VECTOR, 0);
                     switch(new_arg_type) {
                     case VECTOR:
