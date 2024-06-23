@@ -75,7 +75,11 @@ std::string Program::prepare_for_execution(std::string kernel_name, std::vector<
     return build_log;
 }
 
-Error<std::string> Program::execute(size_t n_cores, size_t count, cl_long *time) {
+Error<std::string> Program::execute(size_t n_cores, std::span<size_t> count, cl_long *time) {
+    if (count.size() == 1) return this->execute_1(n_cores, count[0], time);
+    return Error<std::string>().set_error("Not implemented");
+}
+Error<std::string> Program::execute_1(size_t n_cores, size_t count, cl_long *time) {
     Error<std::string> ret;
     std::string log;
     int n_invocations = count / n_cores;

@@ -61,7 +61,7 @@ int main(int, char**) {
     Program prg;
     std::vector<Argument> exec_args;
     size_t n_cores = 1024;
-    size_t exec_count = 1;
+    size_t exec_count[2] = {1};
     char new_arg_buff[16];
     MemoryType new_arg_type;
 
@@ -310,7 +310,8 @@ int main(int, char**) {
                 }
             }
             const size_t u64_one = 1;
-            ImGui::InputScalar("Range esecuzione", ImGuiDataType_U64, &exec_count, &u64_one);
+            ImGui::InputScalar("Range esecuzione x", ImGuiDataType_U64, &exec_count[0], &u64_one);
+            ImGui::InputScalar("Range esecuzione y", ImGuiDataType_U64, &exec_count[1], &u64_one);
             ImGui::End();
 
             for (size_t i=0;i<exec_args.size();i++) {

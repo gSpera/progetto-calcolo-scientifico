@@ -8,6 +8,7 @@
 #include "argument.h"
 
 #include <vector>
+#include <span>
 
 class Program {
 public:
@@ -18,7 +19,7 @@ public:
     }
     std::string build(bool *ok);
     std::string prepare_for_execution(std::string kernel_name, std::vector<Argument> args, bool *ok);
-    Error<std::string> execute(size_t n_cores, size_t count, cl_long *time);
+    Error<std::string> execute(size_t n_cores, std::span<size_t> count, cl_long *time);
     Error<std::vector<std::string>> kernel_names();
 
     std::vector<Memory> mems;
@@ -28,6 +29,8 @@ private:
     std::string build_log;
     cl_program prg;
     cl_kernel kernel;
+
+    Error<std::string> execute_1(size_t n_cores, size_t count, cl_long *time);
 };
 
 #endif
