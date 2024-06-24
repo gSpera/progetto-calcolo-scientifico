@@ -16,14 +16,15 @@
 
 EXE = progetto_spera_giovanni
 IMGUI_DIR = ../imgui
+IMPLOT_DIR = ../implot
 BUILD_DIR:=build
 SOURCES = main.cpp program.cpp error.cpp device.cpp context.cpp memory.cpp argument.cpp
-SOURCES += $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp
+SOURCES += $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp $(IMPLOT_DIR)/implot.cpp $(IMPLOT_DIR)/implot_items.cpp
 SOURCES += $(IMGUI_DIR)/backends/imgui_impl_sdl2.cpp $(IMGUI_DIR)/backends/imgui_impl_sdlrenderer2.cpp
 OBJS = $(addprefix $(BUILD_DIR)/,$(addsuffix .o, $(basename $(notdir $(SOURCES)))))
 UNAME_S := $(shell uname -s)
 
-CXXFLAGS += -std=c++20 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends
+CXXFLAGS += -std=c++20 -I$(IMGUI_DIR) -I$(IMPLOT_DIR) -I$(IMGUI_DIR)/backends
 CXXFLAGS += -g -Wall -Wformat -DCL_TARGET_OPENCL_VERSION=300 `pkg-config --cflags SDL2_image`
 LIBS = -lOpenCL `pkg-config --libs SDL2_image`
 
@@ -66,6 +67,8 @@ $(BUILD_DIR)/%.o:%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/%.o:$(IMGUI_DIR)/%.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+$(BUILD_DIR)/%.o:$(IMPLOT_DIR)/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/%.o:$(IMGUI_DIR)/backends/%.cpp

@@ -5,6 +5,7 @@
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer2.h"
+#include "implot.h"
 
 #include "device.h"
 #include "program.h"
@@ -15,6 +16,7 @@
 
 #include <iostream>
 #include <format>
+#include <fstream>
 
 #if !SDL_VERSION_ATLEAST(2, 0, 17)
 #error This backend requires SDL 2.0.17+ because of SDL_RenderGeometry() function
@@ -64,6 +66,10 @@ int main(int, char**) {
     size_t exec_count[2] = {1};
     char new_arg_buff[16];
     MemoryType new_arg_type;
+    std::vector<float> benchmark_sizes = {1, 10, 100, 200, 400, 800, 1000, 10000}; // TODO: Calculate
+    std::vector<float> benchmark_results;
+    benchmark_results.reserve(benchmark_sizes.size());
+
 
     char editor_source[1024 * 16] = {0};
     FILE *fp = fopen("kernel_opencl.c", "r");
@@ -127,6 +133,7 @@ int main(int, char**) {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
     io.ConfigFlags |=
@@ -234,7 +241,7 @@ int main(int, char**) {
                 }
             }
             if (kernel_names.size() > 0 && (ImGui::SameLine(), ImGui::Button("Benchmark"))) {
-                std::vector<int> benchmark_sizes = {10, 100, 1000};
+                benchmark_results.clear();
                 for (int b_size: benchmark_sizes) {
                     std::cout<<"Preparing for benchmark with size:"<<b_size<<std::endl;
                     bool ok;
@@ -253,13 +260,14 @@ int main(int, char**) {
                             build_error.append(err.get_error());
                         } else {
                             build_error.append("*** Benchmark Execution SUCCEDDED ***\n");
-                        std::cout<<std::format("Executing with size: {} took: {}ns", b_size, (size_t) exec_time)<<std::endl;
-                        build_error.append(std::format("Executing with size: {} took: {}ns", b_size, (size_t) exec_time));
+                            std::cout<<std::format("Executing with size: {} took: {}ns", b_size, (size_t) exec_time)<<std::endl;
+                            build_error.append(std::format("Executing with size: {} took: {}ns", b_size, (size_t) exec_time));
                             build_error.append(err.get_value());
 
                             for (size_t i=0;i<exec_args.size();i++) {
                                 exec_args[i].pop_from_gpu(prg.mems[i]);
                             }
+                            benchmark_results.push_back(((float) exec_time) / 1000 / 1000);
                         }
                     }
                 }
@@ -351,6 +359,28 @@ int main(int, char**) {
                 arg.show();
                 ImGui::End();
             }
+
+            if (benchmark_results.size() != 0) {
+                ImGui::Begin("Risultati benchmark");
+                if (ImGui::Button("Salva CSV")) {
+                    std::ofstream fl;
+                    fl.open("out.csv");
+                    for (size_t i=0; i<benchmark_results.size(); i++) {
+                        fl<<benchmark_sizes[i]<<","<<benchmark_results[i]<<std::endl;
+                    }
+                    fl.close();
+                }
+
+                if (ImPlot::BeginPlot("##result_benchmark")) {
+                    ImPlot::SetupAxis(ImAxis_X1, "Numero core");
+                    ImPlot::SetupAxis(ImAxis_Y1, "Tempo di esecuzione (ms)");
+                    ImPlot::PlotLine("##Tempo esecuzione (ms)", &benchmark_sizes[0], &benchmark_results[0], benchmark_results.size());
+                    ImPlot::EndPlot();
+                }
+
+                ImGui::Text(std::format("Tempo di esecuzione sequenziale: {}ms", benchmark_results[0]).c_str());
+                ImGui::End();
+            }
         }
 
         SDL_LockTexture(framebuffer_texture, NULL, (void**)&framebuffer,
@@ -377,6 +407,7 @@ int main(int, char**) {
     // Cleanup
     ImGui_ImplSDLRenderer2_Shutdown();
     ImGui_ImplSDL2_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 
     SDL_DestroyRenderer(renderer);
