@@ -77,6 +77,7 @@ std::string Program::prepare_for_execution(std::string kernel_name, std::vector<
 
 Error<std::string> Program::execute(size_t n_cores, std::span<size_t> count, cl_long *time) {
     if (count.size() == 1) return this->execute_1(n_cores, count[0], time);
+    return this->execute_1(n_cores, count[0] * count[1], time);
     return Error<std::string>().set_error("Not implemented");
 }
 Error<std::string> Program::execute_1(size_t n_cores, size_t count, cl_long *time) {
@@ -94,7 +95,7 @@ Error<std::string> Program::execute_1(size_t n_cores, size_t count, cl_long *tim
     auto execute = [&] (size_t offset_, size_t len_) {
         size_t offset = offset_;
         size_t len = len_;
-        log.append(std::format(" - Sub Execution offset: {} len: {}\n", offset, len));
+        // log.append(std::format(" - Sub Execution offset: {} len: {}\n", offset, len));
         err = clEnqueueNDRangeKernel(ctx.get_queue(), kernel,
             1, &offset, &len, // Dim, Offset, Size
             NULL, // Local Work Size
@@ -108,13 +109,13 @@ Error<std::string> Program::execute_1(size_t n_cores, size_t count, cl_long *tim
         clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(end_time), &end_time, NULL);
         cl_ulong time_ns = end_time - start_time;
         total_time += time_ns;
-        log.append(std::format("Iteration took: {}ns, {}us\n", time_ns, time_ns / 1000));
+        // log.append(std::format("Iteration took: {}ns, {}us\n", time_ns, time_ns / 1000));
         return Error<Unit>().set_value(unit_value);
     };
 
     for (int i=0; i<n_invocations; i++) {
         size_t offset = i * n_cores;
-        log.append(std::format("Invoking from {} to {}\n", offset, offset + n_cores));
+        // log.append(std::format("Invoking from {} to {}\n", offset, offset + n_cores));
         auto ret2 = execute(offset, n_cores);
         if (ret2.is_error()) return ret.set_error(std::format("{}Error: {}", log, ret2.get_error()));
     }
@@ -125,6 +126,7 @@ Error<std::string> Program::execute_1(size_t n_cores, size_t count, cl_long *tim
     }
 
     log.append(std::format("Total took: {}ns, {}us\n", total_time, total_time / 1000));
+    *time = total_time;
     return ret.set_value(log);
 }
 
