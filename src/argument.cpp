@@ -111,6 +111,14 @@ void Argument::show() {
                     floatVector[i] = ((float) (rand() % 1000)) / 10;
                 }
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Carica CSV")) {
+                // TODO
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Salva CSV")) {
+                // TODO
+            }
 
             for (int i=0;i<this->count();i++) {
                 ImGui::Text(std::format("Posizione {}:", i).c_str());
@@ -129,6 +137,14 @@ void Argument::show() {
                         floatVector[row * cols + col] = ((float) (rand() % 1000)) / 10;
                     }
                 }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Carica CSV")) {
+                // TODO
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Salva CSV")) {
+                // TODO
             }
             ImGui::BeginChild("##arg_matrix", ImVec2(-FLT_MIN, -FLT_MIN), 0, ImGuiWindowFlags_HorizontalScrollbar);
             ImGui::PushItemWidth(5 * 12.0f);
