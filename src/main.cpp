@@ -233,6 +233,37 @@ int main(int, char**) {
                     }
                 }
             }
+            if (kernel_names.size() > 0 && (ImGui::SameLine(), ImGui::Button("Benchmark"))) {
+                std::vector<int> benchmark_sizes = {10, 100, 1000};
+                for (int b_size: benchmark_sizes) {
+                    std::cout<<"Preparing for benchmark with size:"<<b_size<<std::endl;
+                    bool ok;
+                    std::string build_log = prg.prepare_for_execution(kernel_names[current_kernel_index], exec_args, &ok);
+                    build_error.append(build_log);
+
+                    if (!ok) {
+                        build_error.append("*** Benchmark FAILED, error while preparing for execution ***\n");
+                        break;
+                    } else {
+                        cl_long exec_time;
+                        build_error.append(std::format("Executing with size {}\n", b_size));
+                        Error<std::string> err = prg.execute(b_size, exec_count, &exec_time);
+                        if (err.is_error()) {
+                            build_error.append("*** Benchmark Execution FAILED ***\n");
+                            build_error.append(err.get_error());
+                        } else {
+                            build_error.append("*** Benchmark Execution SUCCEDDED ***\n");
+                        std::cout<<std::format("Executing with size: {} took: {}ns", b_size, (size_t) exec_time)<<std::endl;
+                        build_error.append(std::format("Executing with size: {} took: {}ns", b_size, (size_t) exec_time));
+                            build_error.append(err.get_value());
+
+                            for (size_t i=0;i<exec_args.size();i++) {
+                                exec_args[i].pop_from_gpu(prg.mems[i]);
+                            }
+                        }
+                    }
+                }
+            }
 
             ImGui::InputTextMultiline("##editor", editor_source, IM_ARRAYSIZE(editor_source), ImVec2(-FLT_MIN, -FLT_MIN), ImGuiInputTextFlags_AllowTabInput);
             ImGui::End();
