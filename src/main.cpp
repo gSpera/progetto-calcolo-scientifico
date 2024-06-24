@@ -115,7 +115,7 @@ int main(int, char**) {
     SDL_GetRendererInfo(renderer, &info);
     SDL_Log("Current SDL_Renderer: %s", info.name);
 
-    SDL_Texture* framebuffer_texture =
+    /*SDL_Texture* framebuffer_texture =
         SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888,
                           SDL_TEXTUREACCESS_STREAMING, 800, 800);
     if (framebuffer_texture == nullptr) {
@@ -123,12 +123,12 @@ int main(int, char**) {
         return 0;
     }
     uint32_t* framebuffer = new uint32_t[800 * 800];
-    int framebuffer_pitch;
+    int framebuffer_pitch;*/
 
     // Load image
     SDL_Surface *img = IMG_Load("monalisa-483x720.jpg");
     img = SDL_ConvertSurfaceFormat(img, SDL_PIXELFORMAT_RGB888, 0);
-    SDL_Texture *img_texture = SDL_CreateTextureFromSurface(renderer, img);
+    // SDL_Texture *img_texture = SDL_CreateTextureFromSurface(renderer, img);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -383,23 +383,25 @@ int main(int, char**) {
             }
         }
 
-        SDL_LockTexture(framebuffer_texture, NULL, (void**)&framebuffer,
+        /*SDL_LockTexture(framebuffer_texture, NULL, (void**)&framebuffer,
                         &framebuffer_pitch);
         for (int i = 0; i < 800; i++) {
             framebuffer[i + i * 800] = 0xFFFFFFFF;
         }
-        SDL_UnlockTexture(framebuffer_texture);
+        SDL_UnlockTexture(framebuffer_texture);*/
 
         // Rendering
         ImGui::Render();
         SDL_RenderClear(renderer);
 
-        int err = SDL_RenderCopy(renderer, framebuffer_texture, NULL, NULL);
+        /*int err = SDL_RenderCopy(renderer, framebuffer_texture, NULL, NULL);
         if (err != 0) {
             printf("Error: %s\n", SDL_GetError());
             return 1;
-        }
+        }*/
 
+        SDL_SetRenderDrawColor(renderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
+        SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
     }
