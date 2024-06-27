@@ -63,7 +63,7 @@ int main(int, char**) {
     Program prg;
     std::vector<Argument> exec_args;
     size_t n_cores = 1024;
-    size_t exec_count[2] = {1};
+    size_t exec_count[2] = {1, 1};
     char new_arg_buff[16];
     MemoryType new_arg_type;
     std::vector<float> benchmark_sizes = {1, 10, 100, 200, 400, 800, 1000, 10000}; // TODO: Calculate
@@ -372,6 +372,8 @@ int main(int, char**) {
                 }
 
                 if (ImPlot::BeginPlot("##result_benchmark")) {
+                    ImPlot::SetupAxesLimits(0, benchmark_sizes[benchmark_sizes.size() -1], 0, benchmark_results[0]);
+                    // ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
                     ImPlot::SetupAxis(ImAxis_X1, "Numero core");
                     ImPlot::SetupAxis(ImAxis_Y1, "Tempo di esecuzione (ms)");
                     ImPlot::PlotLine("##Tempo esecuzione (ms)", &benchmark_sizes[0], &benchmark_results[0], benchmark_results.size());

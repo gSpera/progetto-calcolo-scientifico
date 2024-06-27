@@ -152,7 +152,7 @@ Error<std::vector<std::string>> Program::kernel_names() {
 
         std::string sub = str.substr(0, index);
         values.push_back(sub);
-        curr_index = index;
+        curr_index = index+1;
     }
 
     return ret.set_value(values);
