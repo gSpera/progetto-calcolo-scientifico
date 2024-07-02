@@ -150,7 +150,7 @@ int main(int, char**) {
     ImGui_ImplSDLRenderer2_Init(renderer);
 
     // Load Fonts
-    auto font = io.Fonts->AddFontFromFileTTF("./FiraCode-Regular.ttf", 13.0f);
+    auto font = io.Fonts->AddFontFromFileTTF("./FiraCode-Regular.ttf", 17.0f);
     if (font == nullptr || !font->IsLoaded()) {
         std::cout<<"Cannot load font"<<std::endl;
     } else {
@@ -372,7 +372,7 @@ int main(int, char**) {
                 }
 
                 if (ImPlot::BeginPlot("##result_benchmark")) {
-                    ImPlot::SetupAxesLimits(0, benchmark_sizes[benchmark_sizes.size() -1], 0, benchmark_results[0]);
+                    ImPlot::SetupAxesLimits(0, benchmark_sizes[benchmark_sizes.size() -1] / 100, 0, benchmark_results[0]);
                     // ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_Log10);
                     ImPlot::SetupAxis(ImAxis_X1, "Numero core");
                     ImPlot::SetupAxis(ImAxis_Y1, "Tempo di esecuzione (ms)");
